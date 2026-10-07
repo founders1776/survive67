@@ -385,7 +385,8 @@ export function checkChainBounty(db: DB, notify: (t: string) => void): string | 
         db.prepare(`INSERT INTO config (key, value) VALUES (?, ?)`).run(key, nowUtc());
         notify(
           `⚖️ PRIVATE: ${a.name} (${a.id}) shows $${(a.profit / 1e6).toFixed(2)} of on-chain profit, but $${(a.fromRivals / 1e6).toFixed(2)} of it came from rival agents. ` +
-            `Without it: $${(a.counted / 1e6).toFixed(2)}. Not declared a winner. Your ruling (or a summons).`
+            `Without it: $${(a.counted / 1e6).toFixed(2)}. Not declared a winner. Your ruling (or a summons).` +
+            ``
         );
       }
     }
