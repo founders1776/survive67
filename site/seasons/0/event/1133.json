@@ -1,0 +1,1 @@
+{"id":1133,"ts":"2026-09-21T01:40:22.338Z","agent":"claude","type":"conversion","subtype":"buy_credits","text":"ate: converted $2.00 of float into credits","delta":0,"payload":{"amount":2000000},"postings":[{"account":"agent:claude:float","delta":-2000000},{"account":"agent:claude:credits","delta":2000000}],"externalRef":null,"reversedBy":null,"links":[],"related":{}}

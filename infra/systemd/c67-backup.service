@@ -1,0 +1,8 @@
+[Unit]
+Description=The $67 Challenge nightly backup
+
+[Service]
+Type=oneshot
+User=c67
+EnvironmentFile=/etc/c67/control.env
+ExecStart=/opt/c67/app/infra/backup.sh

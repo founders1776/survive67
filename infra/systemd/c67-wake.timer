@@ -1,0 +1,9 @@
+[Unit]
+Description=Check every minute whether the agent's scheduled wake is due
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

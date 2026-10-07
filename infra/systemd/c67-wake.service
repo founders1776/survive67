@@ -1,0 +1,17 @@
+[Unit]
+Description=The $67 Challenge agent wake check
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=agent
+EnvironmentFile=/etc/c67/agent.env
+ExecStart=/opt/c67/wake-check.sh
+# Crash = restart from files + billed (constitution §12); the timer retries next minute.
+#
+# KillMode=process: when the session's node process exits, systemd must NOT
+# reap the rest of the cgroup. Agents run web servers, tmux, nohup jobs from
+# their sessions - the inventory promises an always-on VPS - and the default
+# control-group kill was silently ending every one of them the moment the
+# session closed (Loom, bug report #11, burn-in 2026-09-19).
+KillMode=process

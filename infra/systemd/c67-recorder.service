@@ -1,0 +1,13 @@
+[Unit]
+Description=The $67 Challenge event-triggered screen recorder
+After=c67-xvfb.service network-online.target
+Wants=c67-xvfb.service
+
+[Service]
+EnvironmentFile=/etc/c67/agent.env
+ExecStart=/opt/c67/recorder.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

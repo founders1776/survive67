@@ -1,0 +1,17 @@
+[Unit]
+Description=The $67 Challenge control plane
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+User=c67
+EnvironmentFile=/etc/c67/control.env
+WorkingDirectory=/opt/c67/app/control-plane
+ExecStart=/usr/bin/node dist/src/bin.js
+Restart=always
+RestartSec=5
+# admin surface is tailscale-only; bind is enforced by firewall, not here,
+# because the stripe webhook path must stay publicly reachable
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,33 @@
+# Secrets — never in history
+.env
+.env.*
+*.pem
+*.key
+secrets/
+credentials/
+
+# Runtime data — ledger, transcripts, agent state (strict separation rule)
+data/
+*.db
+*.sqlite
+*.sqlite3
+transcripts/
+journals-raw/
+recordings/
+backups/
+
+# Run artifacts
+runs/
+*.log
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# OS/editor
+.DS_Store
+*.swp
+
+# Planning state stays local until decided otherwise
+.ultraplan/

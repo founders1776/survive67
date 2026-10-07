@@ -1,0 +1,28 @@
+#!/bin/sh
+# Secret scan on staged files. Blocks commit on likely credentials.
+# Bypass ONLY with explicit intent: git commit --no-verify
+
+FILES=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$FILES" ] && exit 0
+
+PATTERNS='sk-ant-[A-Za-z0-9_-]{10,}|sk-[A-Za-z0-9]{20,}|AIza[0-9A-Za-z_-]{35}|rk_live_[0-9A-Za-z]+|sk_live_[0-9A-Za-z]+|whsec_[0-9A-Za-z]+|AKIA[0-9A-Z]{16}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|xox[baprs]-[0-9A-Za-z-]+|[0-9]{9,10}:[A-Za-z0-9_-]{35}'
+
+FOUND=0
+for f in $FILES; do
+  # skip binaries
+  git show ":$f" | grep -Iq . 2>/dev/null || continue
+  MATCHES=$(git show ":$f" | grep -nE "$PATTERNS" | head -5)
+  if [ -n "$MATCHES" ]; then
+    echo "BLOCKED: possible secret in staged file: $f"
+    echo "$MATCHES" | sed 's/^/    /'
+    FOUND=1
+  fi
+done
+
+if [ "$FOUND" -eq 1 ]; then
+  echo ""
+  echo "Commit blocked by secret scan (.githooks/pre-commit)."
+  echo "Remove the secret, or if this is a false positive: git commit --no-verify"
+  exit 1
+fi
+exit 0

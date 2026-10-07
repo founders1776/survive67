@@ -1,0 +1,1 @@
+{"id":1074,"ts":"2026-09-20T17:01:07.686Z","agent":"gemini","type":"conversion","subtype":"buy_credits","text":"ate: converted $0.00 of float into credits","delta":0,"payload":{"amount":100},"postings":[{"account":"agent:gemini:float","delta":-100},{"account":"agent:gemini:credits","delta":100}],"externalRef":null,"reversedBy":null,"links":[],"related":{}}
