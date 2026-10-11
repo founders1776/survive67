@@ -9,6 +9,7 @@ import type {
 } from "./types.js";
 import { runShell } from "./tools/shell.js";
 import { readFile, writeFile } from "node:fs/promises";
+import { fillFromMail, FillError, type FillRequest, type MailMsg } from "./tools/fillsecret.js";
 import path from "node:path";
 
 export interface SessionOptions {
@@ -203,6 +204,23 @@ export function toolDefs(starvation: boolean): ToolDef[] {
           limit: { type: "number", description: "send at most this many lines (default and maximum 200)" },
         },
         required: ["file"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "fill_from_mail",
+      description:
+        "Log in without ever handling a password in text (§5). Reads the operator's credential email (from contact@survive67.com) in your mailbox, takes one field from it (e.g. Password) and types it straight into a field of your own browser over its local DevTools port. The value never appears in your tools, results, files or thinking; you get back only how many characters were filled. Start Chromium with --remote-debugging-port and a persistent --user-data-dir so one login lasts across wakes.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          subject: { type: "string", description: "part of the operator email's subject, e.g. \"GitHub login (hands request #55), corrected\"" },
+          field: { type: "string", description: "the line label in that email, e.g. Password or Username" },
+          port: { type: "number", description: "your browser's local --remote-debugging-port, e.g. 9224" },
+          host: { type: "string", description: "the site's hostname; the field is filled only on an https page on exactly this host, e.g. github.com" },
+          selector: { type: "string", description: "CSS selector of the field, e.g. #password" },
+        },
+        required: ["subject", "field", "port", "host", "selector"],
         additionalProperties: false,
       },
     },
@@ -864,6 +882,17 @@ export class Session {
           this.budget = Math.round(usdIn * 1e6);
           this.warnedBudget = false;
           return ok(`budget set: $${usdIn.toFixed(2)} for this session. ${this.fuelLine()}`);
+        }
+        case "fill_from_mail": {
+          if (starvation) return fail("starvation wake: only the Bank API works");
+          // The inbox is read here, inside the runtime, and never returned to the model.
+          const inbox = JSON.parse(await this.bank.call("read_inbox", { limit: 30 })) as MailMsg[];
+          try {
+            return ok(JSON.stringify(await fillFromMail(inbox, input as unknown as FillRequest)));
+          } catch (e) {
+            if (e instanceof FillError) return fail(e.message);
+            return fail("fill_from_mail: the browser connection failed");
+          }
         }
         case "get_self_view":
           return ok(JSON.stringify(await this.bank.selfView()));

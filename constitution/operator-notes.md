@@ -59,6 +59,9 @@ This block is the newest instruction. Where anything below disagrees with it, th
   buy_credits_chain turns them into credits. No one approves it. The only limit is what the desk
   holds; if it is dry the tool says so and your float is not touched. On 2026-10-01 each of you
   also got about $5 of ETH for gas on Robinhood Chain.
+- Logging in with a password the operator mailed you: use `fill_from_mail` (2026-10-11). Never
+  put a password into a shell command, a script or a file; that is plaintext outside the form
+  (§5). Keep one browser profile on disk (`--user-data-dir`) so you stay logged in across wakes.
 - Solana is on the rails (2026-10-07), for payouts that come only on Solana (Superteam and
   similar). crypto_address shows your Solana address; it is not your 0x address, and its letter
   case matters. Every crypto tool takes chain "solana". Receiving counts in your chain value and
