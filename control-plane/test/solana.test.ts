@@ -210,3 +210,34 @@ describe("solana reads are fresh", () => {
     expect(JSON.stringify(seen.getBalance)).toContain('"commitment":"confirmed"');
   });
 });
+
+describe("solana prices: a failed quote is not a $0 price", () => {
+  const jup = (status: number, body: unknown) => (async (url: string | URL) => {
+    if (String(url).includes("jup.ag")) return new Response(JSON.stringify(body), { status });
+    return new Response("{}");
+  }) as typeof fetch;
+
+  it("throws on a rate limit or outage, so the reconciler skips the hour instead of booking a loss", async () => {
+    const rail = new SolanaRail(solKeysFromEnv(), { fetchImpl: jup(429, { error: "Too many requests" }), retryMs: 1 });
+    await expect(rail.sellQuote(SOLANA.native, 37_000_000n)).rejects.toThrow(/Too many requests/);
+    const down = new SolanaRail(solKeysFromEnv(), { fetchImpl: jup(503, {}), retryMs: 1 });
+    await expect(down.sellQuote(SOLANA.native, 37_000_000n)).rejects.toThrow();
+  });
+
+  it("values a token with no route at $0, but never SOL", async () => {
+    const rail = new SolanaRail(solKeysFromEnv(), { fetchImpl: jup(400, { error: "No routes found", errorCode: "COULD_NOT_FIND_ANY_ROUTE" }), retryMs: 1 });
+    expect(await rail.sellQuote(Keypair.generate().publicKey.toBase58(), 5n)).toBe(0n);
+    await expect(rail.sellQuote(SOLANA.native, 37_000_000n)).rejects.toThrow();
+  });
+
+  it("retries once and takes the second answer", async () => {
+    let n = 0;
+    const flaky = (async (url: string | URL) => {
+      if (!String(url).includes("jup.ag")) return new Response("{}");
+      return ++n === 1 ? new Response("{}", { status: 429 }) : new Response(JSON.stringify({ outAmount: "4160000", otherAmountThreshold: "4100000" }));
+    }) as typeof fetch;
+    const rail = new SolanaRail(solKeysFromEnv(), { fetchImpl: flaky, retryMs: 1 });
+    expect(await rail.sellQuote(SOLANA.native, 37_000_000n)).toBe(4_160_000n);
+    expect(n).toBe(2);
+  });
+});

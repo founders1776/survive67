@@ -67,6 +67,8 @@ export interface SolDeps {
   ofacCache?: string;
   /** ms to wait for confirmation before returning "pending" */
   confirmTimeoutMs?: number;
+  /** ms before retrying a failed price quote */
+  retryMs?: number;
 }
 
 export interface SolPreview {
@@ -154,6 +156,9 @@ function parseTokenAccount(a: RawAccount | null): TokenAccountInfo | null {
   return { mint: d.mint.toBase58(), owner: d.owner.toBase58(), amount: d.amount };
 }
 
+/** Jupiter's verdict that a token cannot be sold at all (as opposed to the service failing). */
+export class NoRouteError extends ChainError {}
+
 export class SolanaRail {
   private fetchImpl: typeof fetch;
   private rpcUrl: string;
@@ -161,6 +166,7 @@ export class SolanaRail {
   private ofacUrl: string;
   private ofacCache: string | null;
   private confirmTimeoutMs: number;
+  private retryMs: number;
   private rpcId = 0;
   private queues = new Map<string, Promise<unknown>>();
   private extraKnown: () => string[] = () => [];
@@ -176,6 +182,7 @@ export class SolanaRail {
     this.ofacUrl = deps.ofacUrl ?? OFAC_URL;
     this.ofacCache = deps.ofacCache ?? (process.env.C67_DATA_DIR ? `${process.env.C67_DATA_DIR}/ofac-sol.json` : null);
     this.confirmTimeoutMs = deps.confirmTimeoutMs ?? 45_000;
+    this.retryMs = deps.retryMs ?? 2_000;
   }
 
   get configured(): boolean {
@@ -284,15 +291,27 @@ export class SolanaRail {
     return out;
   }
 
-  /** What `amount` of `token` would sell for, in USDC raw units (= micro-dollars). 0 when no route. */
+  /**
+   * What `amount` of `token` would sell for, in USDC raw units (= micro-dollars).
+   * 0 only when Jupiter says no route exists (an unsellable token is worth $0).
+   * Anything else, a rate limit, a timeout, a 5xx, throws after one retry, so the
+   * reconciler skips the hour instead of booking a loss: until 2026-10-11 any
+   * failed quote returned 0, and both agents' SOL flickered to $0 about seven
+   * times in four days, each a fake $4 loss on the public feed.
+   */
   async sellQuote(token: string, amount: bigint): Promise<bigint> {
     if (token === SOLANA.stable.address) return amount;
     if (amount <= 0n) return 0n;
-    try {
-      const q = await this.quote(token, SOLANA.stable.address, amount, 100);
-      return BigInt(q.outAmount);
-    } catch {
-      return 0n;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const q = await this.quote(token, SOLANA.stable.address, amount, 100);
+        return BigInt(q.outAmount);
+      } catch (e) {
+        // SOL always has a route; "no route" for SOL is the service failing, not a verdict.
+        if (e instanceof NoRouteError && token !== SOLANA.native) return 0n;
+        if (attempt >= 1) throw e;
+        await new Promise((res) => setTimeout(res, this.retryMs));
+      }
     }
   }
 
@@ -305,8 +324,12 @@ export class SolanaRail {
   async quote(tokenIn: string, tokenOut: string, amount: bigint, slippageBps: number): Promise<Record<string, unknown> & { outAmount: string; otherAmountThreshold: string }> {
     const u = `${this.jupiterBase}/swap/v1/quote?inputMint=${this.mintOf(tokenIn)}&outputMint=${this.mintOf(tokenOut)}&amount=${amount}&slippageBps=${slippageBps}`;
     const res = await this.fetchImpl(u);
-    const j = (await res.json()) as Record<string, unknown> & { outAmount?: string; otherAmountThreshold?: string; error?: string };
-    if (!res.ok || !j.outAmount) throw new ChainError(`Jupiter quote: ${String(j.error ?? res.status)}`);
+    const j = (await res.json().catch(() => ({}))) as Record<string, unknown> & { outAmount?: string; otherAmountThreshold?: string; error?: string; errorCode?: string };
+    if (!res.ok || !j.outAmount) {
+      const why = `${String(j.errorCode ?? "")} ${String(j.error ?? res.status)}`.trim();
+      if (/COULD_NOT_FIND_ANY_ROUTE|TOKEN_NOT_TRADABLE|no routes? found/i.test(why)) throw new NoRouteError(`Jupiter quote: ${why}`);
+      throw new ChainError(`Jupiter quote: ${why}`);
+    }
     return j as Record<string, unknown> & { outAmount: string; otherAmountThreshold: string };
   }
 
